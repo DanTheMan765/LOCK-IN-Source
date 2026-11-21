@@ -1,0 +1,144 @@
+local StateMachine = {}
+
+StateMachine.__index = StateMachine
+
+function StateMachine.new(newTable)
+	local newStateMachine = setmetatable(newTable or {}, StateMachine)
+	newStateMachine.ValidStates = newStateMachine.ValidStates or {}
+
+	newStateMachine.CurrentState = nil
+
+	newStateMachine.BeforeLeave = {}
+	newStateMachine.BeforeEnter = {}
+	newStateMachine.AfterLeave = {}
+	newStateMachine.AfterEnter = {}
+
+	newStateMachine.IsInvalid = {}
+
+	newStateMachine.SpecificTransitions = {}
+
+	for i = 1, #newStateMachine.ValidStates do
+		local state = newStateMachine.ValidStates[i]
+
+		newStateMachine.BeforeLeave[state] = {}
+		newStateMachine.BeforeEnter[state] = {}
+		newStateMachine.AfterLeave[state] = {}
+		newStateMachine.AfterEnter[state] = {}
+
+		newStateMachine.IsInvalid[state] = {}
+
+		newStateMachine.SpecificTransitions[state] = {}
+		for j = 1, #newStateMachine.ValidStates do
+			if i == j then
+				continue
+			end
+			local to = newStateMachine.ValidStates[j]
+			newStateMachine.SpecificTransitions[state][to] = {}
+		end
+	end
+
+	return newStateMachine
+end
+
+function StateMachine:ChangeState(NewState: string)
+	if not table.find(self.ValidStates, NewState) then
+		print("ERROR: Couldn't find " .. NewState .. " amongst possible states.")
+		return
+	end
+	local OldState = self.CurrentState
+
+	if OldState == NewState then
+		print("Trying to enter same state twice.")
+		return
+	end
+	-- So turns out if you use pairs here then it ends up doing the functions out of order, no bueno.
+	if OldState then
+		if self.IsInvalid[OldState][NewState] then
+			print("Invalid state, you can't go from", Oldstate, "to", NewState)
+			return
+		end
+	end
+
+	if OldState then
+		for i, funi in self.BeforeLeave[OldState] do
+			funi()
+		end
+	end
+
+	for i, funi in self.BeforeEnter[NewState] do
+		funi()
+	end
+
+	if OldState then
+		for i, funi in pairs(self.SpecificTransitions[OldState][NewState]) do
+			funi()
+		end
+	end
+
+	self.CurrentState = NewState
+
+	if OldState then
+		for i, funi in self.AfterLeave[OldState] do
+			funi()
+		end
+	end
+
+	for i, funi in self.AfterEnter[NewState] do
+		funi()
+	end
+end
+
+return StateMachine
+
+--[[Explanation:
+	Let's say we input the states: "Idle", "Walk", "Run". These would be the contents of each table.
+	newStateMachine.BeforeLeave = {
+		"Idle" = {},
+		"Walk" = {},
+		"Run" = {},
+	}
+	newStateMachine.BeforeEnter = {
+		"Idle" = {},
+		"Walk" = {},
+		"Run" = {},
+	}
+	newStateMachine.AfterLeave = {
+		"Idle" = {},
+		"Walk" = {},
+		"Run" = {},
+	}
+	newStateMachine.AfterEnter = {
+		"Idle" = {},
+		"Walk" = {},
+		"Run" = {},
+	}
+	
+	newStateMachine.IsInvalid = {
+		"Idle" = {},
+		"Walk" = {},
+		"Run" = {},
+	}
+	newStateMachine.SpecificTransitions = {
+		"Idle" = {
+			"Walk" = {},
+			"Run" = {},
+		},
+		"Walk" = {
+			"Idle" = {},
+			"Run" = {},
+		},
+		"Run" = {
+			"Idle" = {},
+			"Walk" = {},
+		},
+	}
+	
+	Here, we've made it so that each state is incompatible with the other states, but you can change that if you want.
+	
+	Whenever we change states, you can perform 4 different things:
+		1. Functions related to the last state you were in (Beforeleaving).
+		2. Preparatory functions related to the new state (BeforeEntering).
+		3. Any specific functions when going into the new state which are dependent on the old state (specificTransitions).
+		4. Functions related to the last state
+		4. Functions related to the new state (AfterEntering).
+]]
