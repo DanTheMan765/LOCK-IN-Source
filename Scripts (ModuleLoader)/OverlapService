@@ -1,0 +1,64 @@
+-- UNUSED; BROKEN AS WELL
+local OverlapSphere = {}
+
+OverlapSphere.__index = OverlapSphere
+
+function OverlapSphere.new(NewTable)
+	local NewOverlapSphere = setmetatable(NewTable or {}, OverlapSphere)
+	NewOverlapSphere.Radius = NewOverlapSphere.Radius or 5 -- 1
+	-- This is inputted as a dot angle, NOT degrees.
+	-- Basically, 1 = forward, 0 = 90 degrees to the sides (left and right), -1 = backward.
+	NewOverlapSphere.MaxAngle = NewOverlapSphere.MaxAngle or false -- 2
+	NewOverlapSphere.IgnoreList = NewOverlapSphere.IgnoreList or {} -- 3
+
+	return NewOverlapSphere
+end
+
+function OverlapSphere:Cast(Position, Forward)
+	local PlayerHit = nil
+	local CastResults = Environment:OverlapSphere(Position, self.Radius, self.IgnoreList)
+	for i, Hit in CastResults do
+		print("Spherecast hit", Hit)
+		if not Hit:IsA("Player") then
+			continue
+		end
+		if not self.MaxAngle then
+			print("No max angle given, first player being added.")
+			PlayerHit = Hit
+			return
+		end
+		--.Unit normalises a vector3, .Magnitude returns a number, it does NOT normalise anything.
+		print("Your position is", Position)
+		print("The other guy's position is", Hit.Position)
+		local HitDirection = (Hit.Position - Position).Unit
+		print("Normalised directions are", Forward, HitDirection)
+		print("Their magnitudes are", Forward.Magnitude, HitDirection.Magnitude)
+		local Dot = Forward:Dot(HitDirection)
+		print("The difference between the player and Hit is", Dot)
+		if Dot >= DotMaxAngle then
+			print(Hit, "Tagged!")
+			PlayerHit = Hit
+			return
+		end
+	end
+	return PlayerHit
+end
+
+return OverlapSphere
+
+--[[ Js got the following message from the spherecast:
+• [20:54:37] Straight up ''tagging it''. And by ''it'', well let's justr say..
+• [20:54:37] Spherecast hit	<Player:Player1> OTHER PLAYER, GOOD.
+• [20:54:37] HitDirection is composed of	<Vector3:(0, 29, 0)>	<Vector3:(0.7260317, 27.501427, -2.4746597)>
+• [20:54:37] Now dotting	<Vector3:(-0.11035766, 4.1174386E-10, 0.99389195)>	2.982747793197632
+]]
+
+-- Alt code for inputting w/ degrees rather than a dot angle thingy.
+--NewOverlapSphere.DotMaxAngle = 1 - 2 * math.rad(self.MaxAngle)
+
+-- Unused code for showcasing the spherecast.
+--[[NewOverlapSphere.SphereParent = NewOverlapSphere.SphereParent or Hidden -- UNUSED
+--local Diameter = NewOverlapSphere.Radius * 2
+local Sphere = Hidden.Parts.Sphere:Clone()
+Sphere.Size = Vector3.New(Diameter, Diameter, Diameter)
+Sphere.Parent = NewOverlapSphere.SphereParent]]
