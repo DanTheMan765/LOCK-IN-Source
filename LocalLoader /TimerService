@@ -1,0 +1,117 @@
+local module = {}
+
+-- Local definitions
+local Player = Players.LocalPlayer
+local Character = Player.Character
+local Bomb = PlayerGUI.GUI.UIView -- ID: 90399, uploaded by BananaDimais.
+local TimerUI = Bomb.UILabel
+
+local NEvents = Hidden.NEvents
+local ExplodeNEvent = NEvents.ExplodeNEvent
+
+local TimerOn = false
+local Range = NumberRange.New(0, 20)
+local Timer = Range.Max
+--local TimerHook = nil
+local Increment = 0
+
+local function SetTimer(Value: number)
+	if Value > Range.Max or Value < Range.Min then
+		print("Invalid value for timer", Value)
+		return
+	end
+	Timer = Value
+	TimerUI.Text = Timer
+	if Timer == Range.Max then
+		TimerUI.Text = ":3"
+	end
+end
+
+local function TimerFunctions()
+	if Timer == Range.Min then
+		TimerOn = false
+		-- Player explodes.
+		print(Player.Name, "just exploded.", TimerOn)
+		ExplodeNEvent:InvokeServer()
+	elseif Increment ~= -1 and Timer == Range.Max then
+		TimerOn = false
+		print("Timer at max value, deactivating.", TimerOn)
+	end
+end
+
+-- Module Definitions
+module.OnLoad = function(Services)
+	print("So far we have", TimerOn, Range, Timer, TimerHook, Increment)
+	Player.TeamChanged:Connect(function(Team)
+		if Team == Teams["Lobby Team"] then
+			TimerOn = false
+			SetTimer(Range.Max)
+			print("Deactivating timer..", TimerOn)
+			return
+		else
+			TimerOn = true
+			print("Starting timer!", TimerOn)
+		end
+		if Team == Teams["Runners"] then
+			print("You're a runner, counting up.")
+			Increment = 1
+		elseif Team == Teams["Taggers"] then
+			print("You're a tagger, counting down.")
+			Increment = -1
+		end
+	end)
+
+	--[[TimerHook = coroutine.wrap(function()
+		Fun stuff here :D
+	end)]]
+
+	spawn(function()
+		-- So setting this to TimerOn would be incredibly convenient. That doesn't work however for some mystical reason.
+		-- Maybe make this disconnectable to solve this (disconnects on max/min/lobby), should work pretty well.
+		while true do
+			--print("Tick")
+			wait(1)
+			if TimerOn then
+				SetTimer(Timer + Increment)
+				TimerFunctions()
+			end
+		end
+	end)
+
+	ExplodeNEvent.InvokedClient:Connect(function(NMessage)
+		local Sender = NMessage:GetInstance("Sender")
+		print(Sender.Name, "just got exploded.")
+		local Explosion = Instance.New("Explosion")
+		Explosion.Position = Sender.Position
+		Explosion.Radius = 10
+		Explosion.Force = 50
+		Explosion.AffectAnchored = false
+		Explosion.Damage = 20
+		Explosion.AffectWelds = false
+		Explosion.Parent = Environment
+		Sender:Move(Vector3.New(0, Explosion.Force * 2, 0))
+		wait(2)
+		Services["TeamService"].AssignTeams({ Sender }, { Teams["Lobby Team"] }, { Environment.Lobby.Spawn }, true)
+	end)
+end
+
+return module
+
+--[[
+	Player.TeamChanged:Connect(function(Team)
+		print("You js changed teams.")
+		TeamChangedNEvent:InvokeServer()
+	end)
+	TeamChangedNEvent.InvokedClient:Connect(function(NMessage)
+		local Sender = NMessage:GetInstance("Sender")
+		local Nametag = Sender.Nametag
+		print(Sender, "just got tagged. Their nametag is", Nametag)
+		Nametag.Text = Sender.Team.DisplayName
+		Nametag.Color = Sender.Team.Color
+	end)
+]]
+
+--[[
+	The plan:
+	We use a coroutine which we start and stop as is needed.
+]]
