@@ -1,0 +1,42 @@
+local module = {}
+
+-- Local definitions
+local NEvents = Hidden.NEvents
+local PlayerJoinedNEvent = NEvents.PlayerJoinedNEvent
+local TeamChangedNEvent = NEvents.TeamChangedNEvent
+local Player = Players.LocalPlayer
+local Character = Player.Character
+
+local Offset = Vector3.New(0, 5.5, 0)
+local FontSize = 10
+
+-- Module Definitions
+module.Nametag = nil
+
+module.OnLoad = function(Services)
+	print("Player just joined")
+	PlayerJoinedNEvent:InvokeServer()
+	Player.TeamChanged:Connect(function(Team)
+		TeamChangedNEvent:InvokeServer()
+	end)
+end
+
+PlayerJoinedNEvent.InvokedClient:Connect(function(NMessage)
+	local Sender = NMessage:GetInstance("Sender")
+	local Nametag = Instance.New("Text3D")
+	Nametag.Name = "Nametag"
+	Nametag.FaceCamera = true
+	Nametag.FontSize = FontSize
+	Nametag.Parent = Sender
+	Nametag.LocalPosition = Offset
+end)
+
+TeamChangedNEvent.InvokedClient:Connect(function(NMessage)
+	local Sender = NMessage:GetInstance("Sender")
+	local Nametag = Sender.Nametag
+	print("Sender's team", Sender.Team)
+	Nametag.Text = Sender.Team.DisplayName
+	Nametag.Color = Sender.Team.Color
+end)
+
+return module
