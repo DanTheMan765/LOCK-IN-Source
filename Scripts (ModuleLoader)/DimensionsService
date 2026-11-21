@@ -1,0 +1,30 @@
+-- UNUSED
+local DimensionsService = {}
+
+DimensionsService.GetPoint = function(
+	Part,
+	RightAxis: number,
+	UpAxis: number,
+	ForwardAxis: number,
+	DestroyPart: boolean?
+)
+	local HalfWidth = Part.Size.X / 2
+	local HalfHeight = Part.Size.Y / 2
+	local HalfLength = Part.Size.Z / 2
+	local Indicator = Hidden.Parts.Indicator:Clone()
+
+	Indicator.Parent = Part
+	Indicator.Position = Part.Position
+	Indicator.Rotation = Part.Rotation
+	Indicator.Position += Part.Right * HalfWidth * RightAxis
+	Indicator.Position += Part.Up * HalfHeight * UpAxis
+	Indicator.Position += Part.Forward * HalfLength * ForwardAxis
+	local Point = Indicator.Position -- This is necessary, DO NOT DELETE THE INDICATOR STUFF!
+	if DestroyPart then
+		Indicator:Destroy()
+	end
+
+	return Point
+end
+
+return DimensionsService
