@@ -1,0 +1,23 @@
+local module = {}
+
+module.CheckInputs = function(input, keys)
+	local keyFound = false
+	for i, key in ipairs(keys) do
+		if input == key then
+			keyFound = true
+		end
+	end
+	if keyFound then
+		return true
+	else
+		return false
+	end
+end
+
+module.Warn = function(text: string)
+	print("[color=#FFA726]text[/color]")
+end
+
+return module
+
+--Js nice convenient things to have in ur scripts fr.
