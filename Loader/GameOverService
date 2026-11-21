@@ -1,0 +1,58 @@
+local module = {}
+
+--Local definitions
+local GameFineLabel = PlayerGUI.GUI.UILabel5
+
+local NEvents = Hidden.NEvents
+local ExplodeNEvent = NEvents.ExplodeNEvent
+
+local TeamCheck = function(Services)
+	local Taggers = Teams["Taggers"]:GetPlayers()
+	local Runners = Teams["Runners"]:GetPlayers()
+	print("Team check. Current state is", Services["RoundService"].CurrentState)
+	-- Yes, I know the last bit is redundant, but I wanna be sure.
+	if Services["RoundService"].CurrentState ~= "Round" and #Taggers > 0 then
+		print("Player died, but the game's not over yet!")
+		return false -- Cannot end game
+	end
+	print("All taggers or all players are out of the game.")
+	Services["RoundService"].CancelState = true
+	return Runners -- Can end game
+end
+
+-- Module functions
+module.Winner = nil
+
+module.OnLoad = function(Services)
+	-- Server stuff
+	ExplodeNEvent.InvokedServer:Connect(function()
+		-- We don't have access to the necessary services on the client side to perform TeamCheck there.
+		local CanEndGame = TeamCheck(Services)
+		if CanEndGame == false or module.Winner then
+			print("Cannot end game", module.Winner, "is the winner.")
+			return
+		end
+		for i, Player in Players:GetChildren() do
+			if table.find(CanEndGame, Player) then
+				module.Winner = Player
+			end
+		end
+		Services["RoundService"].CancelState = true
+		spawn(function()
+			print("Text display activating..", module.Winner.Name)
+			GameFineLabel.Visible = true
+			GameFineLabel.Text = module.Winner.Name .. " WINS!!!"
+			wait(3)
+			GameFineLabel.Visible = false
+			-- Yes, I know that this is a very horrible idea just incase anyone has 9 bajillion ping, I'm just hoping it doesn't happen.
+			module.Winner = nil
+		end)
+	end)
+end
+
+return module
+
+--[[The plan:
+Local side detects death, team change
+Funi NEvent for server-side stuff (ending game using Server stuff.)
+]]
