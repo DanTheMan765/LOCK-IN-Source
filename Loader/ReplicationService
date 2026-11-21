@@ -1,0 +1,25 @@
+local module = {}
+
+local function Replicate(NEvent)
+	NEvent.InvokedServer:Connect(function(Sender, NMessage)
+		print("Network event", NEvent, "invoked.")
+		if not NMessage then
+			NMessage = NetMessage.New()
+		end
+		print("Sender is:", Sender)
+		NMessage:AddInstance("Sender", Sender)
+		NEvent:InvokeClients(NMessage)
+	end)
+end
+
+module.OnLoad = function(Services)
+	for i, NEvent in Hidden.NEvents:GetChildren() do
+		if not NEvent:IsA("NetworkEvent") then
+			return
+		end
+		print("Now activating replication for", NEvent)
+		Replicate(NEvent)
+	end
+end
+
+return module
