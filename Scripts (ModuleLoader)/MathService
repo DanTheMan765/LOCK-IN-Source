@@ -1,0 +1,134 @@
+-- UNUSED; DID A REWORK BUT NEVER GOT FINISHED BCUZ I ABANDONED WHAT I WAS ORIGINALLY GOING TO USE THIS FOR.
+local MathService = {}
+
+-- local definitions
+
+local function getType(type)
+	local equation
+	if type == "Linear" then
+		equation = function(m, x, b)
+			local y = m * x + b
+			return y
+		end
+	elseif type == "Sigmoid" then
+		equation = function(m, x, b)
+			local y = (m / (1 + math.e ^ -x)) + b
+			return y
+		end
+	end
+	return equation
+end
+
+-- Module functions
+-- Rounding but fancy
+MathService.Round = function(Value, Decimals)
+	-- For example:
+	-- V = 1.234	Decimals = 2
+	-- 1.234 * 10 ^ 2 = 123.4
+	-- math.floor(123.4 + 0.5) = math.floor(123.9) = 123
+	-- 123 / 100 = 1.23
+	local Precision = 10 ^ Decimals
+	local RoundedValue = math.floor(Value * Precision + 0.5)
+	RoundedValue /= Precision
+	return RoundedValue
+end
+
+-- Mathematical functions
+MathService.Function = function(
+	type: string,
+	minX: number,
+	maxX: number,
+	m: number,
+	b: number?,
+	subdivisions: number,
+	roundResults,
+	decimals: number?
+)
+	local range
+	local results = {}
+	local canRound = false
+	local equation = getType(type)
+	if roundResults and decimals then
+		canRound = true
+	end
+	if maxX > minX then
+		range = maxX - minX
+	else
+		Print("Invalid range for function!")
+		return
+	end
+	if subdivisions < 2 then
+		Print("Invalid value for subdivisions, the function cannot be split into less than 2 parts!")
+		return
+	end
+	local increasePerI = range / (subdivisions - 1)
+	for i = 1, subdivisions do
+		local x = increasePerI * (i - 1) + minX
+		local y = equation(m, x, b)
+		-- RoundResults would be a table that contains the indexes you want to round.
+		if canRound and (roundResults == "All" or table.find(roundResults, i)) then
+			y = MathService.Round(y, decimals)
+		end
+		table.insert(results, y)
+	end
+	return results
+end
+
+--[[MathService.SigmoidFunction = function(
+	minX: number,
+	maxX: number,
+	m: number,
+	b: number?,
+	subdivisions: number,
+	roundResults,
+	decimals: number?
+)
+	local range
+	local results = {}
+	local canRound = false
+	local equation = getType(type)
+	if roundResults and decimals then
+		canRound = true
+	end
+	if maxX > minX then
+		range = maxX - minX
+	else
+		Print("Invalid range for function!")
+		return
+	end
+	if subdivisions < 2 then
+		Print("Invalid value for subdivisions, the function cannot be split into less than 2 parts!")
+		return
+	end
+	local increasePerI = range / (subdivisions - 1)
+	for i = 1, subdivisions do
+		local x = increasePerI * (i - 1) + minX
+		local y = (m / (1 + math.e ^ -x)) + b
+		if canRound then -- RoundResults would be a table that contains the indexes you want to round.
+			if roundResults == "All" or table.find(roundResults, i) then
+				y = MathService.Round(y, decimals)
+			end
+		end
+		table.insert(results, y)
+	end
+	return results
+end]]
+
+-- Addition and subtraction
+MathService.SafeAdd = function(value, add, maxValue)
+	if (value + add) > maxValue then
+		return maxValue
+	else
+		return value + add
+	end
+end
+
+MathService.SafeSubtract = function(value, sub, minValue)
+	if (value - sub) < minValue then
+		return minValue
+	else
+		return value - sub
+	end
+end
+
+return MathService
