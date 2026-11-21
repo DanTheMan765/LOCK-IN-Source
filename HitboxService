@@ -1,0 +1,23 @@
+local module = {}
+
+-- Local definitions
+local Player = Players.LocalPlayer
+-- Module definitions
+module.Hitbox = nil
+module.MainHitbox = nil
+module.UpperHitbox = nil
+module.LowerHitbox = nil
+
+module.OnLoad = function(Services)
+	-- Yeah I have no idea where my model went..
+	module.Hitbox = Hidden.Models.HitboxModel:Clone()
+	module.MainHitbox = module.Hitbox.Hitbox
+	module.UpperHitbox = module.Hitbox.HitboxTop
+	module.LowerHitbox = module.Hitbox.HitboxBottom
+
+	module.Hitbox.Parent = Player
+	module.Hitbox.LocalPosition = Vector3.New(-48, 11.5, 10) -- More WEIRD position correction. WHY does this always happen when using parts from Hidden??
+	module.Hitbox.LocalRotation = Vector3.New(0, 0, 0)
+end
+
+return module
