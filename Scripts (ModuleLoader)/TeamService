@@ -1,0 +1,93 @@
+local Teamservice = {}
+
+-- Module definitions
+local SpawnOffset = Vector3.New(0, 5, 0)
+
+local function CheckSpawns(Teams, Teamspawns, TpToSpawn)
+	if TpToSpawn and #Teams ~= #Teamspawns then
+		Print("A/several Team(s) lack spawn!")
+		for i, team in ipairs(Teams) do
+			print("Team " .. i .. " is " .. team.Name .. ".")
+		end
+		for i, spawn in ipairs(Teamspawns) do
+			print("Spawn " .. i .. " is " .. spawn.Name .. ".")
+		end
+		return true
+	end
+end
+
+local function CheckTeams(Teams)
+	if #Teams == 0 then
+		print("No Teams available!")
+		return true
+	end
+end
+
+local function CheckPlayers(PlayerPool)
+	if #PlayerPool < 1 then
+		print("No Players available to set Teams!")
+		return true
+	end
+end
+
+-- Module functions
+Teamservice.AssignTeams = function(PlayerPool, Teams, Teamspawns, TpToSpawn: boolean?)
+	local TooFewOrTooManySpawns = CheckSpawns(Teams, Teamspawns, TpToSpawn)
+	local NoTeams = CheckTeams(Teams)
+	local TooFewPlayers = CheckPlayers(PlayerPool)
+	if TooFewOrTooManySpawns or NoTeams or TooFewPlayers then
+		return
+	end
+
+	-- If there's only one team, all the players go there.
+	if #Teams == 1 then
+		for i, Player in pairs(PlayerPool) do
+			Player.Team = Teams[1]
+			if TpToSpawn then
+				Player.Position = Teamspawns[1].Position + SpawnOffset
+			end
+		end
+		return
+	end
+
+	-- If there's only one player and more than one team, we give them a random team.
+	if #PlayerPool == 1 then
+		local RandomTeamIndex = math.random(1, #Teams)
+		PlayerPool[1].Team = Teams[RandomTeamIndex]
+		if TpToSpawn then
+			PlayerPool[1].Position = Teamspawns[RandomTeamIndex].Position + SpawnOffset
+		end
+		return
+	end
+
+	-- If there's more than one player and more than one team, we give each team the same amount of random players.
+	local TeamIndex = 1
+	local PlayersPerTeam = math.ceil(#PlayerPool / #Teams) -- Eg: 9 players / 3 teams = 3 players per team.
+	for i = 1, #PlayerPool do
+		local RandomPlayerIndex = math.random(1, #PlayerPool)
+		local Player = PlayerPool[RandomPlayerIndex]
+		if Player:IsA("Player") then
+			Player.Team = Teams[TeamIndex]
+			if TpToSpawn then
+				Player.Position = Teamspawns[TeamIndex].Position + SpawnOffset
+			end
+
+			TeamIndex = math.ceil(i / PlayersPerTeam) -- For first 3 players - TeamIndex = 1, next three - TeamIndex = 2, etc..
+			table.remove(PlayerPool, RandomPlayerIndex)
+		else
+			Print("Invalid instance to assign to team:" .. Player.Name)
+		end
+	end
+end
+
+Teamservice.getPlayersInTeams = function(Teams)
+	local PlayersInTeams = {}
+	for i, Player in pairs(Players:GetChildren()) do
+		if table.find(Teams, Player.Team) then
+			table.insert(PlayersInTeams, Player)
+		end
+	end
+	return PlayersInTeams
+end
+
+return Teamservice
