@@ -1,0 +1,166 @@
+local module = {}
+
+-- Module definitions
+module.CancelState = false
+module.RoundStateMachine = nil
+module.CurrentState = nil
+
+-- Local definitions
+local GUI = PlayerGUI.GUI
+local RoundDisplay = GUI.UILabel2
+local TimerDisplay = GUI.UILabel4
+local MinPlayers = 2
+-- Wait times for all the different states.
+local WaitTimes = { 9, 3, 120, 5 }
+local TaggerAmount = 1
+
+local function Timer(time)
+	TimerDisplay.Text = time
+	for i = 1, time do
+		wait(1)
+		TimerDisplay.Text = time - i
+	end
+end
+
+local function CancelableTimer(time)
+	TimerDisplay.Text = time
+	for i = 1, time do
+		if module.CancelState then
+			module.CancelState = false
+			print("Wait cancelled")
+			return true -- cancelled
+		end
+		wait(1)
+		TimerDisplay.Text = time - i
+	end
+	return false -- ended normally
+end
+
+module.OnLoad = function(Services)
+	spawn(function() -- No indentation here because this script is making me go insane.
+		module.RoundStateMachine = Services["StateMachineService"].new({
+			ValidStates = { "Intermission", "Preparation", "Round", "Round End" },
+		})
+
+		-- Yes I know this is bad practice, but if I move the change-state stuff into a different function
+		-- then it breaks the entire game and I genuinely have no idea how to solve it.
+		for i, State in module.RoundStateMachine.ValidStates do
+			if State == "Round" then
+				module.RoundStateMachine.AfterEnter[State]["Wait"] = function()
+					spawn(function()
+						print("Waiting", WaitTimes[i], "for", State)
+						CancelableTimer(WaitTimes[i])
+						local j = i + 1
+						if i == #module.RoundStateMachine.ValidStates then
+							j = 1
+						end
+						print("Moving onto the state", module.RoundStateMachine.ValidStates[j])
+						module.CurrentState = module.RoundStateMachine.ValidStates[j]
+						module.RoundStateMachine:ChangeState(module.RoundStateMachine.ValidStates[j])
+					end)
+				end
+			else
+				module.RoundStateMachine.AfterEnter[State]["Wait"] = function()
+					spawn(function()
+						print("Waiting", WaitTimes[i], "for", State)
+						Timer(WaitTimes[i])
+						local j = i + 1
+						if i == #module.RoundStateMachine.ValidStates then
+							j = 1
+						end
+						print("Moving onto the state", module.RoundStateMachine.ValidStates[j])
+						module.CurrentState = module.RoundStateMachine.ValidStates[j]
+						module.RoundStateMachine:ChangeState(module.RoundStateMachine.ValidStates[j])
+					end)
+				end
+			end
+		end
+
+		module.RoundStateMachine.AfterEnter["Intermission"]["CheckPlayers"] = function()
+			print("Checking players before leaving intermission..")
+			if Players.PlayersCount >= MinPlayers then
+				print("Look good, moving on.")
+				return
+			end
+			print("NOT good.")
+			TimerDisplay.Text = "Waiting for players to start"
+			repeat
+				wait(1)
+			until Players.PlayersCount >= MinPlayers
+			-- Just lower MinPlayers if you need to work around this.
+		end
+
+		module.RoundStateMachine.BeforeEnter["Preparation"]["Deal Teams"] = function()
+			print("Dealing out teams.")
+			local Taggers = {}
+			local Runners = {}
+			local UsedIndexes = {}
+			local Players = Players:GetChildren()
+
+			for i = 1, TaggerAmount do
+				local RandomPlayerIndex
+				repeat
+					RandomPlayerIndex = math.random(1, #Players)
+				until not table.find(UsedIndexes, RandomPlayerIndex)
+				table.insert(UsedIndexes, RandomPlayerIndex)
+
+				table.insert(Taggers, Players[RandomPlayerIndex])
+			end
+
+			for i, Player in Players do
+				if table.find(UsedIndexes, i) then
+					continue
+				end
+				table.insert(Runners, Player)
+			end
+
+			-- I know that this is kinda overkill but it works nicely.
+			Services["TeamService"].AssignTeams(Taggers, { Teams["Taggers"] }, { Environment.Map.TaggerSpawn }, true)
+			Services["TeamService"].AssignTeams(Runners, { Teams["Runners"] }, { Environment.Map.RunnerSpawn }, true)
+		end
+
+		-- I really have no idea what to call this lol.
+		module.RoundStateMachine.AfterEnter["Round End"]["Lobbify"] = function()
+			Services["TeamService"].AssignTeams(
+				Players:GetChildren(),
+				{ Teams["Lobby Team"] },
+				{ Environment.Lobby.Spawn },
+				true
+			)
+		end
+
+		module.RoundStateMachine:ChangeState("Intermission")
+	end) -- Scary no indentation again jumpscare :O
+end
+
+return module
+
+--[[ Guys we gotta rework the code so that the game ends when all the taggers explode.
+The plan:
+	-For each of the states we do the whole wait(i) stuff, BUT we make it a for-loop so we can cancel it before it starts (seems weird but it should work).
+	-At the end of the for-loop we change the state to i + 1.
+	-We detect team changes (here) and change the state accordingly. When the amount of taggers == 0 and it's Round then we do Round End.
+]]
+
+--[[Bug explanation:
+Game starts, state is intermission.
+Wait is done, then we move on to prep.
+When moving onto prep, we do beforeleave, which includes checking team stuff.
+We do the team checking, then we do the rest of prep.
+]]
+
+-- This HAS to be at the end, or else you're gonna get things done in the wrong order and stuff breaking.
+--[[for i, State in module.RoundStateMachine.ValidStates do
+		module.RoundStateMachine.AfterEnter[State]["NextState"] = function()
+			local j = i + 1
+			if i == #module.RoundStateMachine.ValidStates then
+				j = 1
+			end
+			spawn(function()
+				print("Moving onto the state", module.RoundStateMachine.ValidStates[j])
+				module.RoundStateMachine:ChangeState(module.RoundStateMachine.ValidStates[j])
+			end)
+		end
+	end]]
+-- Finally removed that stupid while true do loop. If this is made correctly it'll continue from one state to the next
+-- without any issue.
