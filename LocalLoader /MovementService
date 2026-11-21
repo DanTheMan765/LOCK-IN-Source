@@ -1,0 +1,285 @@
+local module = {}
+
+-- local definitions
+local Player = Players.LocalPlayer
+local Character = Player.Character
+local WalkSpeed = 30
+local MinRunSpeed = 38
+local MaxRunSpeed = 50
+local CoyoteTime = 0.3
+local JumpPower = 100
+local VaultMaxDetection = 10
+local VaultSpeedIncrease = 20
+local VaultJumpHeight = 48
+local MaxSpeed = 80
+local Acceleration = 18
+local State
+local SpeedTween = nil
+local CurrentTween = nil
+local Origo = Vector3.New(0, 0, 0) -- I should be able to use this for both position and rotation but I don't get to. :(
+
+local FuniLabel = PlayerGUI.GUI.UILabel -- This is temporary, please remove it sometime.
+
+local function SetSpeed(Speed)
+	-- So apparently if both these values are the same then Polytoria switches to walking when you start running.
+	-- Remember to use SprintSpeed, not WalkSpeed, when detecting speed stuff.
+	Player.WalkSpeed = Speed - 0.01
+	Player.SprintSpeed = Speed
+end
+
+local OldWalkSpeed = WalkSpeed
+local OldMinRunSpeed = MinRunSpeed
+local OldMaxRunSpeed = MaxRunSpeed
+
+local function ReplaceSpeed(Speed)
+	local WalkSpeed = Speed
+	local MinRunSpeed = Speed
+	local MaxRunSpeed = Speed
+	SetSpeed(Speed)
+end
+
+local function ResetSpeed()
+	WalkSpeed = OldWalkSpeed
+	MinRunSpeed = OldMinRunSpeed
+	MaxRunSpeed = OldMaxRunSpeed
+end
+
+local function WalkTween()
+	if SpeedTween then
+		SpeedTween:Cancel(false)
+		SpeedTween = nil
+	end
+
+	CurrentTween = "Walk"
+	SpeedTween = Tween:NewTween()
+	SpeedTween:TweenNumber(
+		Player.SprintSpeed,
+		WalkSpeed,
+		((Player.SprintSpeed - WalkSpeed) / (Acceleration * 2)),
+		function(Speed)
+			SetSpeed(Speed)
+		end
+	)
+	SpeedTween.Finished:Connect(function()
+		CurrentTween = nil
+	end)
+end
+
+local function RunTween()
+	if SpeedTween then
+		SpeedTween:Cancel(false)
+		SpeedTween = nil
+	end
+
+	CurrentTween = "Run"
+	SpeedTween = Tween:NewTween()
+	SpeedTween:TweenNumber(
+		Player.SprintSpeed,
+		MaxRunSpeed,
+		((MaxRunSpeed - Player.SprintSpeed) / Acceleration),
+		function(Speed)
+			SetSpeed(Speed)
+		end
+	)
+	SpeedTween.Finished:Connect(function()
+		CurrentTween = nil
+	end)
+end
+
+-- Module definitions
+
+-- Module functions
+module.OnLoad = function(Services)
+	-- Quick setup
+	Player.JumpPower = JumpPower
+	-- Getting hitbox stuffs for later
+	local Hitbox = Services["HitboxService"].Hitbox
+	local MainHitbox = Services["HitboxService"].MainHitbox
+	local UpperHitbox = Services["HitboxService"].UpperHitbox
+	local LowerHitbox = Services["HitboxService"].LowerHitbox
+
+	-- Actual movement thingies
+	local MovementStateMachine = Services["StateMachineService"].new({
+		ValidStates = { "Idle", "Walking", "Running", "Jumping", "Climbing", "Sliding", "Vaulting" },
+	})
+
+	-- Going from [x] -> {y, z} is no bueno.
+	MovementStateMachine.IsInvalid["Idle"] = { "Sliding", "Running", "Vaulting" }
+	MovementStateMachine.IsInvalid["Walking"] = { "Sliding", "Vaulting" }
+	MovementStateMachine.IsInvalid["Climbing"] = { "Idle", "Walking", "Running", "Sliding", "Vaulting" }
+	MovementStateMachine.IsInvalid["Sliding"] = { "Vaulting" }
+	MovementStateMachine.IsInvalid["Vaulting"] = { "Idle", "Walking", "Climbing", "Running", "Sliding" }
+
+	for i, StateName in ipairs(MovementStateMachine.ValidStates) do
+		MovementStateMachine.AfterEnter[StateName]["ShowNewState"] = function()
+			FuniLabel.Text = StateName
+		end
+	end
+
+	-- Idling
+	MovementStateMachine.AfterEnter["Idle"]["ChangeSpeed"] = function()
+		-- Hoping that this fixes the stupid ahh state stuff..
+		spawn(function()
+			wait(2)
+			if MovementStateMachine.CurrentState == "Idle" then
+				-- So if you stand still ur walkspeed gets set to 40. Huh????
+				Player.WalkSpeed = WalkSpeed
+				Player.SprintSpeed = MinRunSpeed
+			end
+		end)
+	end
+
+	-- Without this, the player can go between vaulting and idling to build up speed since there's no reset
+	-- for short idle times. They can walk at like 100 speed w/o this bro.
+	MovementStateMachine.SpecificTransitions["Vaulting"]["Idle"]["StopBuildup"] = function()
+		Player.WalkSpeed = WalkSpeed
+		Player.SprintSpeed = MinRunSpeed
+	end
+
+	--Walking
+	MovementStateMachine.AfterEnter["Walking"]["ChangeSpeed"] = function()
+		if Player.SprintSpeed == WalkSpeed then
+			return
+		end
+		WalkTween()
+	end
+
+	Input.KeyUp:Connect(function(key)
+		if key ~= Enums.KeyCode.Shift then
+			return
+		end
+		MovementStateMachine:ChangeState("Walking")
+	end)
+
+	-- Running
+	MovementStateMachine.AfterEnter["Running"]["ChangeSpeed"] = function()
+		if Player.SprintSpeed == MaxRunSpeed then
+			return
+		end
+
+		if Player.SprintSpeed < MinRunSpeed then
+			SetSpeed(MinRunSpeed)
+		end
+
+		RunTween()
+	end
+
+	Input.KeyDown:Connect(function(key)
+		if key == Enums.KeyCode.Space then
+			HasPressedSpace = true
+		end
+	end)
+
+	Input.KeyDown:Connect(function(key)
+		if key ~= Enums.KeyCode.Shift then
+			return
+		end
+		MovementStateMachine:ChangeState("Running")
+	end)
+
+	-- Jumping and falls
+	local JumpDetection = nil
+	local HasPressedSpace = false
+
+	Input.KeyDown:Connect(function(key)
+		if key == Enums.KeyCode.Space then
+			HasPressedSpace = true
+		end
+	end)
+
+	MovementStateMachine.AfterEnter["Jumping"]["CoyoteTime"] = function()
+		local StartTime = time()
+		if JumpDetection or HasPressedSpace then
+			return
+		end
+		JumpDetection = Input.KeyDown:Connect(function(key)
+			if key ~= Enums.KeyCode.Space then
+				return
+			end
+
+			if (time() - StartTime) <= CoyoteTime then
+				print("Coyote time!", time() - StartTime)
+				Player:Move(Vector3.New(0, Player.JumpPower, 0)) -- :Jump doesn't work here :((
+				JumpDetection:Disconnect()
+				JumpDetection = nil
+			else
+				JumpDetection:Disconnect()
+				JumpDetection = nil
+			end
+		end)
+	end
+
+	MovementStateMachine.AfterLeave["Jumping"]["StopCoyoteTime"] = function()
+		if JumpDetection then
+			JumpDetection:Disconnect()
+			JumpDetection = nil
+		end
+		HasPressedSpace = false
+	end
+
+	-- Vaulting
+	Input.KeyDown:Connect(function(key)
+		if key ~= Enums.KeyCode.Space then
+			return
+		end
+
+		local UpperRayResult = Environment:Raycast(UpperHitbox.Position, UpperHitbox.Forward, VaultMaxDetection)
+
+		local LowerRayResult = Services["ShapecastService"].Shapecast(
+			LowerHitbox.Position,
+			LowerHitbox.Forward,
+			VaultMaxDetection,
+			Vector3.New(2.5, 5, 0.1),
+			{ MainHitbox, UpperHitbox, LowerHitbox, Player }
+		)
+
+		if LowerRayResult == nil then
+			print("Vault DENIED!")
+			return
+		end
+
+		if UpperRayResult == nil or UpperRayResult.Distance > LowerRayResult["Distance"] then
+			MovementStateMachine:ChangeState("Vaulting")
+		end
+	end)
+
+	MovementStateMachine.AfterEnter["Vaulting"]["Vault"] = function()
+		if SpeedTween then
+			SpeedTween:Cancel()
+		end
+		if not Player.Velocity == 0 then
+			--VaultSpeedIncrease = 20 -- Change this if need be.
+			local VaultSpeed = Services["MathService"].SafeAdd(Player.SprintSpeed, VaultSpeedIncrease, MaxSpeed)
+			ReplaceSpeed(VaultSpeed)
+		end
+		Player:Move(Vector3.New(0, VaultJumpHeight, 0)) -- :Jump doesn't work here :((
+		if CurrentTween == "Run" then
+			RunTween()
+		elseif CurrentTween == "Walk" then
+			WalkTween()
+		end
+	end
+
+	MovementStateMachine.AfterLeave["Vaulting"]["EndVault"] = function()
+		ResetSpeed()
+	end
+
+	-- Trying to figure out when the HECK the PROPERTIES CHANGE!!! (Sorry for the foul language.)
+	Character.PropertyChanged:Connect(function(PropertyName: string)
+		if PropertyName == "CurrentState" then
+			TempState = tostring(Character.CurrentState)
+			State = string.gsub(TempState, "CharacterModelStateEnum.", "")
+			MovementStateMachine:ChangeState(State)
+		end
+	end)
+end
+
+return module
+
+-- I'm falling in love with your favorite song
+-- I'm gonna sing it all night long
+-- I'm gonna dance with somebody
+-- Dance with somebody
+-- Dance
+-- Dance
+-- Daaannnceeee..
