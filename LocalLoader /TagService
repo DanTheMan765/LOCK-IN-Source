@@ -1,0 +1,67 @@
+local module = {}
+
+-- Local definitions
+local Player = Players.LocalPlayer
+local Character = Player.Character
+local TagNEvent = Hidden.NEvents.TagNEvent
+
+local MaxTagDistance = 5
+local HitboxSize = Vector3.New(5, 5, 5)
+local HitboxPositionOffset = 3.5
+
+module.OnLoad = function(Services)
+	local IgnoreList = Services["HitboxService"].Hitbox:GetChildren()
+	table.insert(IgnoreList, Player)
+
+	Input.KeyDown:Connect(function(key)
+		if not (key == Enums.KeyCode.MouseLeft and Player.Team ~= nil and Player.Team == Teams["Taggers"]) then
+			return
+		end
+		--local ItemsTagged = TagSphere:Cast(Player.Position, Player.Forward)
+		local ItemsTagged = Environment:OverlapBox(
+			Player.Position + Player.Forward * HitboxPositionOffset,
+			HitboxSize,
+			Player.Rotation,
+			IgnoreList
+		)
+
+		--[[ CUT
+		-- Remember that raycasts can still collide with this stuff!!!!
+		local Temp = Instance.New("Part")
+		Temp.CanCollide = false
+		Temp.Position = Player.Position + Player.Forward * HitboxPositionOffset
+		Temp.Size = HitboxSize
+		Temp.Rotation = Player.Rotation
+		Temp.Color = Color.FromRGB(255, 0, 0, 0.1)
+		Temp.Parent = Environment
+		spawn(function()
+			wait(0.5)
+			Temp:Destroy()
+		end)
+		-- END]]
+
+		if ItemsTagged == nil or #ItemsTagged == 0 then
+			return
+		end
+		for i, OtherPlayer in ItemsTagged do
+			-- The last argument shouldn't be needed, but for whatever reason it is.
+			if not OtherPlayer:IsA("Player") or OtherPlayer.Team == Teams["Taggers"] or OtherPlayer == Player then
+				continue
+			end
+			-- So that you can't tag multiple players.
+			local NMessage = NetMessage.New()
+			NMessage:AddInstance("OtherPlayer", OtherPlayer)
+			TagNEvent:InvokeServer(NMessage)
+			return
+		end
+	end)
+
+	TagNEvent.InvokedClient:Connect(function(NMessage)
+		local Sender = NMessage:GetInstance("Sender")
+		local OtherPlayer = NMessage:GetInstance("OtherPlayer")
+		Sender.Team = Teams["Runners"]
+		OtherPlayer.Team = Teams["Taggers"]
+	end)
+end
+
+return module
