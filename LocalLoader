@@ -1,0 +1,4 @@
+local HiddenModuleLoader = Hidden.HiddenModuleLoader
+local Loader = require(HiddenModuleLoader["ModuleLoader"])
+
+Loader.LoadAll()
