@@ -1,0 +1,69 @@
+local module = {}
+
+-- Local definitions
+
+-- Module definitions
+module.Shapecast = function(Position: Vector3, Direction: Vector3, MaxDistance: number, Size: Vector3, IgnoreList)
+	local ReturnValue = {
+		Foo = "Yes.",
+	}
+
+	if not MaxDistance then
+		MaxDistance = 10000 -- Like I could set this to math.huge but I don't wanna blow up someone's PC with this stupid function.
+	end
+
+	if not IgnoreList then
+		IgnoreList = {}
+	end
+
+	-- Please make sure your Vector3 is normalised before doing this (eg: using part.Forward).
+	local ElapsedDistance = 0
+	local EndPoint = Direction * MaxDistance + Position
+	local TotalDistance = (EndPoint - Position).Magnitude
+	local RaySpeed = TotalDistance * 0.01
+
+	local Shape = Instance.New("Part")
+	Shape.CanCollide = false
+	Shape.Color = Color.FromRGB(255, 0, 0, 0.1)
+	Shape.Size = Size
+	Shape.Position = Position
+	Shape:LookAt(EndPoint)
+	Shape.Parent = Environment
+
+	local Tween = Tween:NewTween()
+
+	Shape.Touched:Connect(function(Hit)
+		if table.find(IgnoreList, Hit) then
+			print("Collision ignored.")
+			return
+		end
+		-- Distance is basically ;) the distance between the startpoint and where the detection happened.
+		ReturnValue["Collided"] = Hit
+		ReturnValue["Distance"] = math.floor(ElapsedDistance + Size.Z)
+		-- Genuinely the stupidest thing, but it works. Essentially stopped ~= finished, but this does finish the tween.
+		Tween:Cancel(true)
+		print("Collision detected!")
+	end)
+
+	Tween:TweenVector3(Position, EndPoint, RaySpeed, function(NewPosition)
+		Shape.Position = NewPosition
+		ElapsedDistance = (NewPosition - Position).Magnitude
+	end)
+
+	Tween.Finished:Wait()
+	print("Tween post-stop.")
+	Tween:Stop()
+	Shape:Destroy()
+	local length = 0
+	for i, item in ReturnValue do
+		print("Item " .. i .. " is", item)
+		length += 1
+	end
+	if length == 1 then
+		print("Returnvalue is now nil.")
+		ReturnValue = nil
+	end
+	return ReturnValue
+end
+
+return module
