@@ -1,0 +1,52 @@
+local ModuleLoader = {}
+
+-- Local definitions
+local RequiredModules = {
+	Foo = "Bar",
+}
+
+local function GetScripts(Scripts)
+	for i, Module in ipairs(Scripts:GetChildren()) do
+		if not Module:IsA("ModuleScript") then
+			continue
+		end
+		local ModuleCode = require(Module)
+		RequiredModules[Module.Name] = ModuleCode
+	end
+end
+
+local function LoadScripts()
+	for i, Module in pairs(RequiredModules) do
+		if not Module["OnLoad"] then
+			continue
+		end
+		-- This way, each module has access to all the other modules.
+		Module.OnLoad(RequiredModules)
+	end
+end
+
+ModuleLoader.LoadAll = function()
+	-- Get common scripts (Used by server and client)
+	local HiddenModuleLoader = Hidden.HiddenModuleLoader
+	local HiddenScripts = HiddenModuleLoader.Scripts
+
+	-- Get server or local scripts
+	local Scripts
+	if Players.LocalPlayer ~= nil then
+		local LocalScripts = ScriptService.LModuleLoader.Scripts
+		Scripts = LocalScripts
+	else
+		local ServerScripts = ScriptService.ModuleLoader.Scripts
+		Scripts = ServerScripts
+	end
+
+	-- Get the contents of common modules
+	GetScripts(HiddenScripts)
+	-- Get the contents of local or server Modules
+	GetScripts(Scripts)
+
+	-- Loads all modules from earlier and gives each of the access to eachother.
+	LoadScripts()
+end
+
+return ModuleLoader
