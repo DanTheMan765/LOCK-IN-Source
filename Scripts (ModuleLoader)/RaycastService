@@ -1,0 +1,56 @@
+-- This is broken, just use a regular raycast.
+
+local RayCaster = {}
+
+RayCaster.__index = RayCaster
+
+function RayCaster.new(newTable)
+	local newRayCaster = setmetatable(newTable or {}, RayCaster)
+
+	newRayCaster.Origin = newRayCaster.Origin or Instance.New("Part")
+	print("Origin is", newRayCaster.Origin)
+	newRayCaster.MaxDistance = newRayCaster.MaxDistance or 1 -- 2
+	newRayCaster.IgnoreList = newRayCaster.IgnoreList or {} -- 3
+	table.insert(newRayCaster.IgnoreList, newRayCaster.Origin)
+	newRayCaster.CompleteIgnoreList = newRayCaster.IgnoreList
+	newRayCaster.Laser = newRayCaster.Laser or Hidden.Models.Laser -- 4
+	newRayCaster.LaserFolder = Instance.New("Folder")
+	newRayCaster.LaserFolder.Name = "LaserFolder"
+	newRayCaster.LaserFolder.Parent = Hidden
+	newRayCaster.LaserDebrisTime = newRayCaster.LaserDebrisTime or 0.1 -- 5
+
+	return newRayCaster
+end
+
+function RayCaster:Visualise(RayResults)
+	print("Pre")
+	print("self stuff", self.MaxDistance, self.Origin)
+	local Midpoint = (self.Origin.Position + RayResults.Position) / 2
+
+	local LaserClone = Laser:Clone()
+	LaserClone.Size = Vector3.new(RayResults.Distance, LaserClone.Size.Y, LaserClone.Size.Z)
+	LaserClone.Position = Midpoint
+	LaserClone:LookAt(RayResults.Position)
+	--LaserClone.Orientation += Vector3.new(0, 90, 0)
+	LaserClone.Parent = self.LaserFolder
+	self.CompleteIgnoreList = { self.IgnoreList, self.LaserFolder:GetDescendants() }
+	game.Debris:AddItem(LaserClone, self.LaserDebrisTime)
+
+	return LaserClone
+end
+
+function RayCaster:Raycast(Direction)
+	print("Raycasting params:", self.Origin, Direction, self.MaxDistance, self.CompleteIgnoreList)
+	for i, item in self.CompleteIgnoreList do
+		print("Item " .. i .. " is", item)
+	end
+	local RayResults = Environment:Raycast(self.Origin.Position, Direction, self.MaxDistance, self.CompleteIgnoreList)
+	if not RayResults then
+		print("Ray failed.")
+		return
+	end
+	print("Returning RayResults")
+	return RayResults
+end
+
+return RayCaster
